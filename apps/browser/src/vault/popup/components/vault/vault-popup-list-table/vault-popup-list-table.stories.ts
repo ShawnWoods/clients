@@ -305,7 +305,7 @@ const buildProviders = (args: StoryArgs) => {
         saveFilters: () => {},
         clearVaultScopedFilters: () => {},
         vaultScopedFiltersCleared$: NEVER,
-        suspendedSelection$: of(false),
+        suspended$: () => of(false),
         selectedOrganizations: signal<string[]>([]),
         cipherTypes$: of(CIPHER_TYPE_OPTIONS),
         organizations$: of(ORGANIZATION_OPTIONS),

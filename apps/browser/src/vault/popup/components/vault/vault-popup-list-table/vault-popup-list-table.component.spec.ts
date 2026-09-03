@@ -137,15 +137,14 @@ describe("VaultPopupListTableComponent", () => {
 
   /** Emitted by the switcher's clear, which the table follows to reset its own controls. */
   const vaultScopedFiltersCleared$ = new Subject<void>();
-  /** Whether every selected organization is suspended, which blanks the rows. */
-  const suspendedSelection$ = new BehaviorSubject<boolean>(false);
+  /** Whether the vault in view is suspended, which blanks the rows. */
+  const suspendedVault$ = new BehaviorSubject<boolean>(false);
 
   const vaultPopupListTableFiltersService = {
     restoreFilters$: jest.fn().mockReturnValue(of({})),
     saveFilters: jest.fn(),
     clearVaultScopedFilters: jest.fn(),
     vaultScopedFiltersCleared$: vaultScopedFiltersCleared$.asObservable(),
-    suspendedSelection$: suspendedSelection$.asObservable(),
     selectedFilters$: of({
       cipherType: null,
       organization: [] as string[],
@@ -250,6 +249,9 @@ describe("VaultPopupListTableComponent", () => {
     }).compileComponents();
 
     listTableSvc = TestBed.inject(VaultPopupListTableService);
+    // Driven directly: the real stream folds the route scope and the chip selection together, and
+    // these tests exercise the blanking rather than how that state is derived.
+    Object.defineProperty(listTableSvc, "suspendedVault$", { value: suspendedVault$ });
     listTableSvc.setScope(null);
     fixture = TestBed.createComponent(VaultPopupListTableComponent);
     component = fixture.componentInstance;
@@ -343,7 +345,7 @@ describe("VaultPopupListTableComponent", () => {
         // Tests can then observe the transition to true when the suspended state is set below.
         fixture.detectChanges();
         filteredCiphers$.next([makeCipher({ organizationId: "org-1" })]);
-        suspendedSelection$.next(true);
+        suspendedVault$.next(true);
         fixture.detectChanges();
       });
 
@@ -362,7 +364,7 @@ describe("VaultPopupListTableComponent", () => {
       });
 
       it("restores the rows once the filter moves off the suspended organization", () => {
-        suspendedSelection$.next(false);
+        suspendedVault$.next(false);
         fixture.detectChanges();
 
         expect(component["rows"]()).toHaveLength(1);
@@ -379,7 +381,7 @@ describe("VaultPopupListTableComponent", () => {
       it("does not announce again when the filter moves off the suspended organization", () => {
         liveAnnouncer.announce.mockClear();
 
-        suspendedSelection$.next(false);
+        suspendedVault$.next(false);
         fixture.detectChanges();
 
         expect(liveAnnouncer.announce).not.toHaveBeenCalled();

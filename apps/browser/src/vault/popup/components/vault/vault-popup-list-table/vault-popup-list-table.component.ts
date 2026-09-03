@@ -166,10 +166,8 @@ export class VaultPopupListTableComponent {
     initialValue: false,
   });
 
-  /**
-   * Whether the organization filter points at a suspended organization.
-   */
-  protected readonly showDeactivatedOrg = toSignal(this.listFiltersService.suspendedSelection$, {
+  /** Whether the vault in view is suspended, by route scope or by chip. */
+  protected readonly showDeactivatedOrg = toSignal(this.listTableService.suspendedVault$, {
     initialValue: false,
   });
 

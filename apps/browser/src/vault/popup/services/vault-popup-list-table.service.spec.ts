@@ -1,7 +1,7 @@
 import { TestBed, fakeAsync, tick } from "@angular/core/testing";
 import { Router } from "@angular/router";
 import { mock, MockProxy } from "jest-mock-extended";
-import { BehaviorSubject, firstValueFrom, of, Subject } from "rxjs";
+import { BehaviorSubject, firstValueFrom, map, of, Subject } from "rxjs";
 
 import { AccountService } from "@bitwarden/common/auth/abstractions/account.service";
 import { FeatureFlag } from "@bitwarden/common/enums/feature-flag.enum";
@@ -55,8 +55,8 @@ describe("VaultPopupListTableService", () => {
     collection: string[];
     folder: string[];
   }>({ cipherType: null, organization: [], collection: [], folder: [] });
-  /** Whether every selected organization is suspended, which blanks the table's rows. */
-  const suspendedSelection$ = new BehaviorSubject<boolean>(false);
+  /** The organizations `memberOrganizations$` reports, for the suspended-vault check. */
+  const memberOrganizations$ = new BehaviorSubject<{ id: string; enabled: boolean }[]>([]);
 
   const makeCipher = (overrides: Partial<PopupCipherViewLike> = {}): PopupCipherViewLike =>
     ({ id: "cipher-1", name: "Item", type: CipherType.Login, ...overrides }) as PopupCipherViewLike;
@@ -73,7 +73,7 @@ describe("VaultPopupListTableService", () => {
     currentTabIsOnBlocklist$.next(false);
     clickItemsToAutofillVaultView$.next(true);
     selectedFilters$.next({ cipherType: null, organization: [], collection: [], folder: [] });
-    suspendedSelection$.next(false);
+    memberOrganizations$.next([]);
 
     cipherService = mock<CipherService>();
     vaultPopupAutofillService = mock<VaultPopupAutofillService>();
@@ -129,7 +129,14 @@ describe("VaultPopupListTableService", () => {
           provide: VaultPopupListTableFiltersService,
           useValue: {
             selectedFilters$: selectedFilters$.asObservable(),
-            suspendedSelection$: suspendedSelection$.asObservable(),
+            // Mirrors the real predicate, which the table service composes with the route scope.
+            suspended$: (ids: string[]) =>
+              memberOrganizations$.pipe(
+                map((orgs) => {
+                  const named = orgs.filter((o) => ids.includes(o.id));
+                  return named.length > 0 && named.every((o) => !o.enabled);
+                }),
+              ),
           },
         },
       ],
@@ -212,29 +219,47 @@ describe("VaultPopupListTableService", () => {
       });
 
       /** The rows are withheld, not filtered, so they are still in `rows$`. */
-      describe("with only suspended organizations selected", () => {
+      /**
+       * The rows are withheld by the table rather than filtered out, so they are still in
+       * `rows$`. Either narrowing can name the suspended organization — the chip when unscoped,
+       * the route scope otherwise — and only one is ever active.
+       */
+      describe("a suspended organization", () => {
         beforeEach(() => {
           filteredCiphers$.next([
             makeCipher({ id: "org", organizationId: ORG_ID }),
             makeCipher({ id: "org-2", organizationId: ORG_ID }),
           ]);
+          memberOrganizations$.next([{ id: ORG_ID, enabled: false }]);
+        });
+
+        it("counts zero when named by the chip", async () => {
           selectedFilters$.next({
             cipherType: null,
             organization: [ORG_ID],
             collection: [],
             folder: [],
           });
-        });
-
-        it("counts zero, matching the blanked list", async () => {
-          suspendedSelection$.next(true);
 
           expect(await firstValueFrom(service.itemCount$)).toBe(0);
         });
 
-        it("counts them again once the selection is no longer all suspended", async () => {
-          suspendedSelection$.next(true);
-          suspendedSelection$.next(false);
+        /** The scoped page renders no chip, so only the route names the organization. */
+        it("counts zero when named by the route scope", async () => {
+          service.setScope({
+            type: VaultScopeType.Organization,
+            organizationId: ORG_ID as OrganizationId,
+          });
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(0);
+        });
+
+        it("counts its items once it is enabled again", async () => {
+          service.setScope({
+            type: VaultScopeType.Organization,
+            organizationId: ORG_ID as OrganizationId,
+          });
+          memberOrganizations$.next([{ id: ORG_ID, enabled: true }]);
 
           expect(await firstValueFrom(service.itemCount$)).toBe(2);
         });

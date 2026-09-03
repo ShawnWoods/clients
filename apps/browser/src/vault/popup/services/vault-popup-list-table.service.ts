@@ -11,6 +11,7 @@ import {
   Observable,
   shareReplay,
   startWith,
+  switchMap,
   tap,
   timer,
 } from "rxjs";
@@ -196,17 +197,33 @@ export class VaultPopupListTableService {
   );
 
   /**
+   * Whether the vault in view is suspended, from whichever of the two narrowings is active: the
+   * route scope, or the chip when the page is unscoped and renders one.
+   */
+  readonly suspendedVault$: Observable<boolean> = combineLatest([
+    this.scope$,
+    this.listFiltersService.selectedFilters$,
+  ]).pipe(
+    switchMap(([scope, selected]) =>
+      this.listFiltersService.suspended$(
+        scope.type === VaultScopeType.Organization ? [scope.organizationId] : selected.organization,
+      ),
+    ),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
+  /**
    * The number of items the vault currently shows, for the header's count.
    *
    * Counts the `allItems` section, which holds every cipher once, and re-applies the chips: the
-   * table filters by them itself, so they never reach {@link rows$}. A suspended selection counts
+   * table filters by them itself, so they never reach {@link rows$}. A suspended vault counts
    * zero — the table withholds those rows rather than filtering them out.
    */
   readonly itemCount$: Observable<number> = combineLatest([
     this.rows$,
     this.listFiltersService.selectedFilters$,
     this.scope$,
-    this.listFiltersService.suspendedSelection$,
+    this.suspendedVault$,
   ]).pipe(
     map(([rows, selected, scope, suspended]) => {
       if (suspended) {

@@ -5,6 +5,7 @@ import {
   filter,
   map,
   Observable,
+  of,
   shareReplay,
   Subject,
   switchMap,
@@ -116,28 +117,29 @@ export class VaultPopupListTableFiltersService {
   readonly vaultScopedFiltersCleared$ = this.vaultScopedFiltersCleared.asObservable();
 
   /**
-   * Whether every selected organization is suspended, which the table renders as a message in
+   * Whether every organization in `ids` is suspended, which the table renders as a message in
    * place of its rows. Their ciphers still match the organization's own filter, so the rows are
    * withheld rather than filtered out.
+   *
+   * Takes the ids rather than reading a selection: the chip and the route scope each narrow to an
+   * organization, and only one of them is ever active — the scoped page renders no chip.
    */
-  readonly suspendedSelection$: Observable<boolean> = combineLatest([
-    toObservable(this.selectedOrganizations),
-    this.accountService.activeAccount$.pipe(
+  suspended$(ids: string[]): Observable<boolean> {
+    const named = ids.filter((id) => id !== MY_VAULT);
+    if (!named.length || named.length !== ids.length) {
+      return of(false);
+    }
+
+    return this.accountService.activeAccount$.pipe(
       getUserId,
       switchMap((userId) => this.organizationService.memberOrganizations$(userId)),
-    ),
-  ]).pipe(
-    map(([selectedIds, orgs]) => {
-      const ids = selectedIds.filter((id) => id !== MY_VAULT);
-      if (!ids.length || ids.length !== selectedIds.length) {
-        return false;
-      }
-
-      const selected = orgs.filter((org) => ids.includes(idString(org.id)!));
-      return selected.length > 0 && selected.every((org) => !org.enabled);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true }),
-  );
+      map((orgs) => {
+        const selected = orgs.filter((org) => named.includes(idString(org.id)!));
+        return selected.length > 0 && selected.every((org) => !org.enabled);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true }),
+    );
+  }
 
   /**
    * The current chip selection, in the shape the table's `filterValues` uses.
