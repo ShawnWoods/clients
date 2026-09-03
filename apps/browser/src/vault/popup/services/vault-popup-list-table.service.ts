@@ -124,9 +124,8 @@ export class VaultPopupListTableService {
   /**
    * Narrows the vault to `scope`; {@link ALL_ITEMS_SCOPE} shows every vault's items.
    *
-   * Publishing a scope does not clear the chip selections. This fires on popup open with whatever
-   * scope the route already held, so clearing here would drop a persisted selection before the
-   * table could restore it — the switcher clears from the user's action instead.
+   * Does not clear the chips — this also fires on popup open, which would drop a persisted
+   * selection before the table restored it. The switcher clears from the user's action instead.
    */
   setScope(scope: VaultScope | null): void {
     this.scope$.next(scope ?? ALL_ITEMS_SCOPE);
@@ -176,10 +175,7 @@ export class VaultPopupListTableService {
     this.scope$,
   ]).pipe(
     map(([autoFillCiphers, favoriteCiphers, filteredCiphers, hasSearchText, context, scope]) => {
-      /**
-       * One section's rows: the ciphers the scope admits, in display order. `cipherInScope` decides
-       * the vault and the item state together, the way the web vault narrows its own rows.
-       */
+      /** One section's rows: the ciphers the scope admits, in display order. */
       const section = (ciphers: PopupCipherViewLike[], name: VaultSection) =>
         ciphers
           .filter((cipher) => cipherInScope(cipher, scope))
@@ -202,21 +198,9 @@ export class VaultPopupListTableService {
   /**
    * The number of items the vault currently shows, for the header's count.
    *
-   * Counted off the `allItems` section rather than {@link rows$} as a whole: a cipher that is both
-   * an autofill suggestion and a favorite appears in up to three sections, and that section always
-   * holds the complete list once each.
-   *
-   * The chips are applied here too, rather than only the vault scope and the search that
-   * {@link rows$} already carries: with the VFO1 flag on, the chip selection is applied by the
-   * table itself and never reaches this stream, so a count taken straight off the rows would sit
-   * above a list the chips had narrowed and contradict it.
-   *
-   * Only the chips the current scope still offers are applied — see {@link scopedFilters}.
-   *
-   * A selection of nothing but suspended organizations counts zero. Their ciphers match the
-   * organization's own filter, so the table withholds the rows rather than filtering them out and
-   * renders a message in their place; counting the rows there would report a total above an empty
-   * list.
+   * Counts the `allItems` section, which holds every cipher once, and re-applies the chips: the
+   * table filters by them itself, so they never reach {@link rows$}. A suspended selection counts
+   * zero — the table withholds those rows rather than filtering them out.
    */
   readonly itemCount$: Observable<number> = combineLatest([
     this.rows$,
@@ -243,10 +227,8 @@ export class VaultPopupListTableService {
   );
 
   /**
-   * The cached chip selection, less the chips the current scope has taken away.
-   *
-   * A scoped vault renders no organization chip, so there is no vault selection for the table to
-   * apply and the count must not invent one — the scope already narrows the rows to that vault.
+   * The cached chip selection, less the chips the current scope has taken away. A scoped vault
+   * renders no organization chip, so the count must not apply one the table cannot show.
    */
   private scopedFilters(
     selected: {

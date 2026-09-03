@@ -220,9 +220,8 @@ export class PopupHeaderComponent {
     // See `titleBarAnimated`: declaring the transition before the bar collapses would animate the
     // padding and border that arrive with the flag rather than the collapse.
     //
-    // A restore is excluded for the same reason it collapses the bar at all: it re-establishes a
-    // state the page already held, so the bar should arrive collapsed rather than animate into it
-    // while the user watches the page they returned to settle.
+    // A restore is excluded for the same reason it collapses the bar: the state was already held,
+    // so it should arrive collapsed rather than animate into it.
     if (this.titleBarAnimated() && !this.scrollLayout.restoredScrolled()) {
       classes.push(
         "motion-safe:tw-transition-[grid-template-rows,padding]",

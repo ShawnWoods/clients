@@ -10,9 +10,8 @@ import { VaultPopupScrollPositionService } from "./vault-popup-scroll-position.s
 
 /**
  * A `scrollTo` that behaves like a real element: `scrollTop` updates synchronously, clamped to
- * `maxTop`, but the `scroll` event waits for the next rendering update. Mocks that dispatch
- * synchronously put the event before the code that runs after `scrollTo`, an ordering the browser
- * never produces — which hid two separate ordering bugs in this service.
+ * `maxTop`, but the event waits a frame. Dispatching synchronously is an ordering the browser
+ * never produces, and it hid two bugs in this service.
  */
 const stubScrollTo = (el: HTMLElement, maxTop = Number.MAX_SAFE_INTEGER) => {
   (el as any).scrollTop = 0;
@@ -173,8 +172,7 @@ describe("VaultPopupScrollPositionService", () => {
       });
 
       it("keeps the stored position when a restore is clamped to a shorter list", fakeAsync(() => {
-        // Switching to a vault with fewer items cannot honor the saved offset, so the browser
-        // clamps `scrollTop` and fires a scroll event of its own.
+        // A shorter list cannot honor the saved offset, so the browser clamps it.
         stubScrollTo(scrollElement, 40);
         service["scrollPosition"] = 234;
 
@@ -198,8 +196,7 @@ describe("VaultPopupScrollPositionService", () => {
       }));
 
       it("re-targets onto a replaced scroll element", fakeAsync(() => {
-        // Navigating between vaults rebuilds `popup-page`, so the element the listener was
-        // tracking is detached and a new one takes its place.
+        // Navigating rebuilds `popup-page`, detaching the element the listener was tracking.
         service["scrollPosition"] = 234;
         service.start(scrollElement);
         tick();
@@ -232,8 +229,7 @@ describe("VaultPopupScrollPositionService", () => {
       }));
 
       it("declares the restored-scrolled state before applying the offset", fakeAsync(() => {
-        // Collapsing chrome comes out of the scroll viewport, so the bar has to be collapsed
-        // before `scrollTo` runs or the offset lands against a shorter viewport.
+        // The bar's height comes out of the viewport, so it must collapse before the jump.
         const scrollLayout = TestBed.inject(ScrollLayoutService);
         const order: string[] = [];
 
@@ -295,9 +291,8 @@ describe("VaultPopupScrollPositionService", () => {
       }));
 
       /**
-       * The vault attaches twice — `popup-page`'s region, then the table's viewport once its rows
-       * render — and the first never scrolls. Declaring the state from whether a jump was
-       * attempted let the no-op restore onto the region cancel the real one onto the viewport.
+       * The vault attaches twice and the first element never scrolls, so a state declared from
+       * whether a jump was attempted let the no-op restore cancel the real one.
        */
       describe("across the vault's two-phase attach", () => {
         /** `popup-page`'s region wraps the table exactly, so it never overflows. */
@@ -334,11 +329,7 @@ describe("VaultPopupScrollPositionService", () => {
         }));
       });
 
-      /**
-       * The restore's own scroll event arrives a frame later than the code following `scrollTo`,
-       * so a guard cleared on a timer expires first and the event reads as the user's — releasing
-       * the collapsed chrome the restore had just declared.
-       */
+      /** A guard cleared on a timer expires before the restore's own event, a frame later. */
       it("holds the declared state through the restore's own deferred event", fakeAsync(() => {
         const scrollLayout = TestBed.inject(ScrollLayoutService);
         service["scrollPosition"] = 500;
@@ -384,9 +375,7 @@ describe("VaultPopupScrollPositionService", () => {
       }));
 
       it("stores the first scroll when there was nothing to restore", fakeAsync(() => {
-        // With no stored position there is no `scrollTo`, so the first event is the user's own.
-        // Discarding it left the position null forever: leaving the vault for a cipher and coming
-        // back restored nothing, because nothing had been saved.
+        // With nothing to restore the first event is the user's own; discarding it stored nothing.
         service["scrollPosition"] = null;
 
         service.start(scrollElement);

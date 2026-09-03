@@ -47,24 +47,17 @@ import { idString, MY_VAULT, NO_FOLDER } from "@bitwarden/vault";
 
 import { PopupCipherViewLike } from "../views/popup-cipher.view";
 
-/** Nesting delimiter for folder path segments. */
 const NESTING_DELIMITER = "/";
 
-/** Persisted filter state for the view cache. */
 interface CachedTableFilterState {
   organizationIds?: string[];
   collectionIds?: string[];
-  /** Folder ids; {@link NO_FOLDER} marks the "no folder" selection. */
   folderIds?: string[];
   cipherType?: CipherType | null;
 }
 
 /**
  * Filter service for the vault popup list table (`VaultPopupListTableComponent`).
- *
- * Provides filter chip option streams, per-option item counts, cache persistence,
- * and cache restore. The table component owns its chip selections via `BitTableV2Component`;
- * this service supplies the option data and saves/restores state from the view cache.
  */
 @Injectable({
   providedIn: "root",
@@ -125,8 +118,7 @@ export class VaultPopupListTableFiltersService {
   /**
    * Whether every selected organization is suspended, which the table renders as a message in
    * place of its rows. Their ciphers still match the organization's own filter, so the rows are
-   * withheld rather than filtered out — anything reporting on the list has to account for it
-   * separately or it describes rows the user cannot see.
+   * withheld rather than filtered out.
    */
   readonly suspendedSelection$: Observable<boolean> = combineLatest([
     toObservable(this.selectedOrganizations),
@@ -149,10 +141,6 @@ export class VaultPopupListTableFiltersService {
 
   /**
    * The current chip selection, in the shape the table's `filterValues` uses.
-   *
-   * The table applies the chips itself, so anything outside it that has to agree with the rows on
-   * screen — the header's item count — narrows by these rather than assuming the rows it was
-   * handed are already filtered.
    */
   readonly selectedFilters$ = toObservable(
     computed(() => {
@@ -169,10 +157,6 @@ export class VaultPopupListTableFiltersService {
   /**
    * Persists the current chip selection to the view cache.
    * Call this whenever the table's `filterValues` signal emits a new value.
-   *
-   * Also keeps {@link selectedOrganizations} in sync: this service is `providedIn: "root"` and
-   * outlives any one component instance, so every call site that changes the org selection
-   * (including clearing it) must go through here rather than setting the signal separately.
    */
   saveFilters(values: {
     cipherType?: CipherType | null;
@@ -190,16 +174,9 @@ export class VaultPopupListTableFiltersService {
   }
 
   /**
-   * Drops the chip selections that name a vault or something inside one, for a switch to a
-   * different vault.
-   *
-   * The vault, shared folder, and folder chips all select things that belong to one vault, so a
-   * selection made under a different scope names nothing the new one offers — the chip is either
-   * gone (vault) or re-populated with the new vault's own options (shared folder, folder), and the
-   * stale selection would sit in the cache narrowing the count to nothing while the list, which
-   * never received it, shows every item.
-   *
-   * The type chip is kept: item types span vaults, so that selection still means what it did.
+   * Drops the vault, shared-folder, and folder selections for a switch to a different vault —
+   * each names something belonging to one vault, so it names nothing the new one offers. The type
+   * chip is kept: item types span vaults.
    */
   clearVaultScopedFilters(): void {
     this.cachedFilters.set({

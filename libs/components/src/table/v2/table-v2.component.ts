@@ -258,16 +258,11 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
   readonly height = input<"fill" | number>();
 
   /**
-   * Whether the table's scrolling body is the page's primary scroll region, registering it with
-   * {@link ScrollLayoutService} the way `bitScrollLayoutHost` marks one in a layout.
-   *
-   * A `"fill"` table inside a bounded container is the thing that scrolls — the layout's own
-   * region wraps it exactly and never overflows — so features that watch the page's scrolling,
-   * like a collapsing title bar, have to watch the body rather than that region. Off by default:
-   * a table that grows to content scrolls with the page instead, and a page with several tables
-   * has no single one to hand over.
-   *
-   * Only meaningful with `height="fill"`.
+   * Registers the table's scrolling body as the page's scroll region, the way
+   * `bitScrollLayoutHost` marks one in a layout. A `"fill"` table is what scrolls — the layout's
+   * own region wraps it exactly and never overflows — so a collapsing title bar has to watch the
+   * body. Off by default, since a page with several tables has no single one to hand over. Only
+   * meaningful with `height="fill"`.
    */
   readonly scrollLayoutHost = input(false, { transform: booleanAttribute });
 

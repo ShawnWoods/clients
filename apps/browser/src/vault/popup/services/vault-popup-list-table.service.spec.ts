@@ -211,10 +211,7 @@ describe("VaultPopupListTableService", () => {
         expect(rows.map((r) => r.cipher.id)).toEqual(["personal", "org"]);
       });
 
-      /**
-       * The table withholds a suspended organization's rows and renders a message instead, so the
-       * ciphers are still in `rows$`. Counting them there reports a total above an empty list.
-       */
+      /** The rows are withheld, not filtered, so they are still in `rows$`. */
       describe("with only suspended organizations selected", () => {
         beforeEach(() => {
           filteredCiphers$.next([
@@ -244,9 +241,8 @@ describe("VaultPopupListTableService", () => {
       });
 
       /**
-       * Clearing a stale selection is the switcher's job, since it is the only place a switch
-       * originates — publishing a scope also happens on popup open. The service's part is not
-       * inventing a vault selection the scoped page renders no chip for.
+       * Clearing is the switcher's job — publishing a scope also happens on popup open. The
+       * service's part is not inventing a vault selection the scoped page has no chip for.
        */
       describe("with a chip selection under a scope", () => {
         const COLLECTION_ID = "33333333-3333-4333-8333-333333333333";
@@ -353,11 +349,7 @@ describe("VaultPopupListTableService", () => {
       });
     });
 
-    /**
-     * The chips are applied by the table rather than by `rows$` — with the VFO1 flag on,
-     * `filterFunction` is deliberately skipped upstream — so a count taken straight off the rows
-     * would sit above a list the chips had narrowed and contradict it.
-     */
+    /** The table applies the chips, not `rows$`, so a raw count contradicts the list. */
     describe("chip filters", () => {
       beforeEach(() => {
         filteredCiphers$.next([

@@ -21,8 +21,8 @@ export class ScrollLayoutService {
   scrollableRef$ = toObservable(this.scrollableRef);
 
   /**
-   * Whether the page is being restored to a scroll position it held earlier, so chrome that
-   * collapses on scroll should start collapsed rather than animate out of the way afterwards.
+   * Whether the page is being restored to a scroll position it held earlier, so collapsing chrome
+   * should start collapsed rather than animate afterwards.
    */
   readonly restoredScrolled = signal(false);
 }

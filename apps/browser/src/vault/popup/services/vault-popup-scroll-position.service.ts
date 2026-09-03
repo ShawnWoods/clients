@@ -23,8 +23,8 @@ export class VaultPopupScrollPositionService {
   private scrollSubscription: Subscription | null = null;
 
   /**
-   * Where a restore in flight left the element, or `null` when none is. A scroll event that finds
-   * the element still there belongs to the restore rather than to the user — see {@link start}.
+   * Where a restore in flight left the element, or `null` when none is. An event finding the
+   * element still there belongs to the restore, not the user.
    */
   private restoredTo: number | null = null;
 
@@ -45,19 +45,17 @@ export class VaultPopupScrollPositionService {
     const target = this.scrollPosition;
 
     if (restoring) {
-      // Declared before the jump paints, so collapsing chrome arrives collapsed rather than
-      // animating once the offset lands. Corrected below from where the jump actually went.
+      // Declared before the jump paints so collapsing chrome arrives collapsed rather than
+      // animating. Corrected below from where the jump landed.
       this.scrollLayout.restoredScrolled.set(target! > 0);
 
       // Use `setTimeout` to scroll after rendering is complete
       setTimeout(() => {
         scrollElement.scrollTo({ top: target!, behavior: "instant" });
-        // Declared from where the jump actually landed, not from whether one was attempted. The
-        // vault attaches twice — `popup-page`'s region first, then the table's viewport once its
-        // rows render — and the first element never scrolls, so a restore onto it lands at 0.
-        // Reading the result keeps the last attach authoritative whichever order they settle in,
-        // and a stored 0 still resolves to false. A clamped restore lands short of the target, so
-        // this is the offset the guard below compares against.
+        // From where the jump landed, not whether one was attempted: the vault attaches twice and
+        // the first element never scrolls, so reading the result keeps the last attach
+        // authoritative. Also the offset the guard below compares against, since a clamp lands
+        // short of the target.
         this.restoredTo = scrollElement.scrollTop;
         this.scrollLayout.restoredScrolled.set(scrollElement.scrollTop > 0);
       });
@@ -68,11 +66,8 @@ export class VaultPopupScrollPositionService {
     this.restoredTo = restoring ? target : null;
 
     this.scrollSubscription = fromEvent(scrollElement, "scroll").subscribe(() => {
-      // Decided from the offset rather than from elapsed time: `scrollTo` updates `scrollTop`
-      // synchronously but the event waits for the next rendering update, so a timer meant to
-      // outlast it usually expires first — and the restore's own event then read as the user's,
-      // releasing the collapsed chrome the restore had just declared. An event that leaves the
-      // element where the restore put it belongs to the restore, however many arrive.
+      // By offset, not elapsed time: `scrollTo` is synchronous but its event waits a frame, so a
+      // timer expires first and the restore's own event reads as the user's.
       if (this.restoredTo != null && scrollElement.scrollTop === this.restoredTo) {
         return;
       }

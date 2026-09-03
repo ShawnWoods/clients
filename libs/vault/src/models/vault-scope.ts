@@ -208,17 +208,12 @@ export function resolveVaultScope(
   return scope;
 }
 
-/**
- * The path web and desktop mount the vault at — the root of their layouts. Clients that mount it
- * elsewhere pass their own base path to {@link vaultScopeCommands}; see `VAULT_BASE_ROUTE`.
- */
+/** The path web and desktop mount the vault at; see `VAULT_BASE_ROUTE` for clients that differ. */
 export const DEFAULT_VAULT_BASE_ROUTE = "/vault";
 
 /**
  * The `Router.navigate` commands for a scope — the single place vault scope URLs are built, so
  * the nav and the route parser can't drift.
- *
- * Only the base path varies between clients.
  */
 export function vaultScopeCommands(
   scope: VaultScope,

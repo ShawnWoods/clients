@@ -80,23 +80,15 @@ import { ItemCopyActionsComponent } from "../item-copy-action/item-copy-actions.
 import { ItemMoreOptionsComponent } from "../item-more-options/item-more-options.component";
 
 /**
- * Flattens a nested `ChipFilterOption` tree into a single depth-first list. Interim:
- * `bit-filter-option` has no depth or children concept, so a flat list is the only shape the menu
- * renders today. Drop this once the recursive nesting in CL-985 lands.
- *
- * Each node keeps the trailing path segment the tree gave it, so a child of "Work" shows as "EU" —
- * meaning options are tracked by id, since "Work/Personal" and "Home/Personal" flatten to one
- * label.
+ * Flattens a nested `ChipFilterOption` tree into a depth-first list — `bit-filter-option` has no
+ * nesting concept yet. Drop once CL-985 lands. Nodes keep the trailing path segment only, so
+ * options are tracked by id rather than label.
  */
 function flattenOptions<T>(options: ChipFilterOption<T>[]): ChipFilterOption<T>[] {
   return options.flatMap((option) => [option, ...flattenOptions(option.children ?? [])]);
 }
 
-/**
- * The chips that select a vault or something inside one, so a move between vaults invalidates
- * them. The type chip is absent: item types span vaults, so that selection still means what it
- * did after the switch.
- */
+/** The chips a vault switch invalidates. Type is absent: item types span vaults. */
 const VAULT_SCOPED_FILTER_KEYS = ["organization", "collection", "folder"];
 
 @Component({
@@ -175,9 +167,7 @@ export class VaultPopupListTableComponent {
   });
 
   /**
-   * Whether the organization filter points at a suspended organization. The table stays mounted in
-   * this state so the filter that caused it remains clearable — unmounting would strip the chips
-   * and the search box along with it.
+   * Whether the organization filter points at a suspended organization.
    */
   protected readonly showDeactivatedOrg = toSignal(this.listFiltersService.suspendedSelection$, {
     initialValue: false,
@@ -187,18 +177,12 @@ export class VaultPopupListTableComponent {
     initialValue: [] as VaultTableRow[],
   });
 
-  /**
-   * A suspended organization's ciphers still match its own filter, so they're withheld here rather
-   * than upstream. Emptying the rows also hands the state to the table's empty slot.
-   */
   protected readonly rows = computed(() => (this.showDeactivatedOrg() ? [] : this.allRows()));
 
   protected readonly table = defineTable<VaultTableRow, "name">(this.rows);
 
   /**
-   * Row-level filter predicate passed to `bit-table-v2 [filter]`. The chip selections are ids
-   * (organization/collection/folder ids, plus the {@link MY_VAULT}/{@link NO_FOLDER} sentinels)
-   * rather than full objects — see {@link organizationOptions} for why.
+   * Row-level filter predicate passed to `bit-table-v2 [filter]`
    */
   protected readonly filterPredicate = (
     row: VaultTableRow,
@@ -216,11 +200,7 @@ export class VaultPopupListTableComponent {
 
   /**
    * One row per unique cipher, for filter-chip counts. {@link rows} intentionally contains up to
-   * three entries per cipher (autofill/favorites/allItems sections) so each section renders its
-   * own copy — counting off it directly would triple-count a cipher that's both a favorite and an
-   * autofill suggestion. The "allItems" section always contains the complete, once-each list of
-   * currently matching ciphers (it's the only section rendered at all when a search is active), so
-   * it doubles as the deduplicated set.
+   * three entries per cipher (autofill/favorites/allItems sections)
    */
   protected readonly uniqueRows = computed(() =>
     this.rows().filter((row) => row._section === "allItems"),
@@ -228,9 +208,7 @@ export class VaultPopupListTableComponent {
 
   /**
    * Count of unique ciphers matching the current chip selection with `key` pinned to `value`.
-   * Bound as each `bit-filter-option`'s `[count]`, overriding `bit-table-v2`'s default count
-   * (which counts off the triplicated {@link rows} instead of {@link uniqueRows}).
-   */
+   **/
   protected optionCount = (key: string, value: unknown): number => {
     const values = { ...(this.tableEl()?.filterValues() as any), [key]: value };
     return this.uniqueRows().filter((row) => this.filterPredicate(row, values)).length;
@@ -240,13 +218,6 @@ export class VaultPopupListTableComponent {
    * The filter options. Each stream empties when its filter doesn't apply (no orgs, or
    * folders/collections narrowed away by the selected organization), which hides that chip.
    *
-   * These carry the full domain object (label, icon, `organizationId`, …) for rendering, but the
-   * template binds `bit-filter-option [value]` to the id, not the option itself: `folders$` and
-   * `collections$` rebuild `FolderView`/`CollectionView` instances on every emission (they
-   * `combineLatest` on {@link VaultPopupListTableFiltersService.selectedOrganizations}, which
-   * churns on unrelated chip changes — see `saveFilters`), and `FilterMenuComponent` tracks
-   * selection by `===` identity. Binding the object would desync the checkmark from the selection
-   * the moment either stream re-emitted a fresh copy. Ids are stable across re-emissions.
    */
   protected readonly cipherTypeOptions = toSignal(this.listFiltersService.cipherTypes$, {
     initialValue: [] as ChipFilterOption<CipherType>[],
@@ -436,14 +407,9 @@ export class VaultPopupListTableComponent {
         return;
       }
 
-      // Seed chips from the persisted cache once the required data resolves.
-      //
-      // Keyed on the controls rather than emitted once: a chip registers only when it has options,
-      // and the folder chip's come from `folders$`, which waits on the whole cipher list — later
-      // than the streams `restoreFilters$` resolves. Seeding on a single emission left the folder
-      // selection in the cache with no control to receive it, so it was the one filter that did
-      // not survive a popup reopen. Each control is seeded once, so a value the user has since
-      // cleared is not reapplied.
+      // Seed chips from the persisted cache, keyed on the controls rather than one emission: a
+      // chip registers only once it has options, and the folder chip's arrive after
+      // `restoreFilters$` resolves. Once per control, so a cleared value is not reapplied.
       const seeded = new Set<string>();
       combineLatest([
         this.listFiltersService.restoreFilters$(),
@@ -473,10 +439,8 @@ export class VaultPopupListTableComponent {
           this.validateOrgChips(table, values);
         });
 
-      // Reset the controls when a vault switch clears the cache. They hold their own values, so a
-      // chip left set would keep narrowing the rows under a vault whose options no longer offer
-      // it. Driven by the switcher's own signal rather than by the scope, which also publishes on
-      // popup open with a scope the route already held.
+      // Reset the controls when a vault switch clears the cache — they hold their own values.
+      // Driven by the switcher's signal rather than the scope, which also publishes on open.
       this.listFiltersService.vaultScopedFiltersCleared$
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => {

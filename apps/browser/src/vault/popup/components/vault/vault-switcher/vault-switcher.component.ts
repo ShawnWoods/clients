@@ -60,11 +60,8 @@ export class VaultSwitcherComponent {
   private readonly scrollPositionService = inject(VaultPopupScrollPositionService);
 
   /**
-   * Whether the menu is open, for the chevron's highlight.
-   *
-   * Held here rather than read off the trigger's `aria-expanded`: the directive clears that from a
-   * CDK overlay subscription that runs no change detection, so an `OnPush` view never re-renders
-   * on close and the open styling sticks.
+   * Whether the menu is open, for the chevron's highlight. Held here rather than read off
+   * `aria-expanded`, which the directive clears without change detection.
    */
   protected readonly menuOpen = signal(false);
 
@@ -79,12 +76,8 @@ export class VaultSwitcherComponent {
   );
 
   /**
-   * The vaults to switch between, led by All items.
-   *
-   * Empty when the account has one reachable vault — a personal vault alone, or a single
-   * organization under data ownership — since every entry would then resolve to the same items.
-   * The tiles come from the shared `navIconTile`, so a vault reads the same color here as in the
-   * web side nav and the item table's Vault column.
+   * The vaults to switch between, led by All items. Empty for a lone reachable vault, since every
+   * entry would resolve to the same items. Tiles come from the shared `navIconTile`.
    */
   protected readonly entries = computed((): VaultSwitcherEntry[] => {
     const nav = this.nav();
@@ -125,16 +118,14 @@ export class VaultSwitcherComponent {
   });
 
   protected select(id: string | null): void {
-    // Drop chip selections that name something belonging to the vault being left. Cleared from the
-    // user's action rather than from the scope publish it causes, since that publish also fires on
-    // popup open with a scope the route already held.
+    // Drop chips that name something in the vault being left. Cleared from the user's action, not
+    // the scope publish it causes — that also fires on popup open.
     if (id != null) {
       this.listFiltersService.clearVaultScopedFilters();
     }
 
     // A different vault is a different list, so the offset names nothing in it. The route is not
-    // reused, so the page is rebuilt and would otherwise restore the offset the previous vault
-    // was left at — opening part-way down, under chrome collapsed by the restore.
+    // reused, so the rebuilt page would otherwise restore the previous vault's offset.
     this.scrollPositionService.stop(true);
 
     void this.router.navigate(this.commandsFor(id), {

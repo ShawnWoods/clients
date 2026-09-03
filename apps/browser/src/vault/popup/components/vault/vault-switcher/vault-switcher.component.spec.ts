@@ -198,10 +198,7 @@ describe("VaultSwitcherComponent", () => {
       });
     });
 
-    /**
-     * The chips select things belonging to one vault, so entering another invalidates them.
-     * Cleared here rather than on the scope publish, which also fires on popup open.
-     */
+    /** Cleared here rather than on the scope publish, which also fires on popup open. */
     describe("vault-scoped chip filters", () => {
       it("clears them when entering an organization's vault", () => {
         const options = openMenu();
@@ -237,11 +234,7 @@ describe("VaultSwitcherComponent", () => {
       });
     });
 
-    /**
-     * The route is not reused, so the page is rebuilt on every switch and would otherwise restore
-     * the offset the previous vault was left at — opening part-way down, under chrome the restore
-     * collapsed. Reset for All items too: the offset names nothing in a different list either way.
-     */
+    /** The rebuilt page would otherwise restore the previous vault's offset onto a new list. */
     describe("the stored scroll position", () => {
       it.each([
         ["an organization's vault", 2],
