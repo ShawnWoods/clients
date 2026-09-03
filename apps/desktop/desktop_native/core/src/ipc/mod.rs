@@ -52,8 +52,19 @@ fn internal_ipc_codec<T: AsyncRead + AsyncWrite>(inner: T) -> Framed<T, LengthDe
         .new_framed(inner)
 }
 
+const ENV_BITWARDEN_IPC_SOCKET_DIR: &str = "BITWARDEN_IPC_SOCKET_DIR";
+
 /// The main path to the IPC socket.
 pub fn path(name: &str) -> std::path::PathBuf {
+    // Allow overriding the socket directory, e.g. to isolate a debug instance from an installed
+    // client. The directory might not exist, so create it.
+    if let Ok(dir) = std::env::var(ENV_BITWARDEN_IPC_SOCKET_DIR) {
+        let path_dir = std::path::PathBuf::from(dir);
+        let _ = std::fs::create_dir_all(&path_dir);
+
+        return path_dir.join(format!("s.{name}"));
+    }
+
     #[cfg(target_os = "windows")]
     {
         // Use a unique IPC pipe //./pipe/xxxxxxxxxxxxxxxxx.s.bw per user (s for socket).
