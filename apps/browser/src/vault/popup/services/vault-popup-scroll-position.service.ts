@@ -23,10 +23,10 @@ export class VaultPopupScrollPositionService {
   private scrollSubscription: Subscription | null = null;
 
   /**
-   * Whether a restore is in flight, during which scroll events belong to the restore rather than
-   * to the user — see {@link start}.
+   * Where a restore in flight left the element, or `null` when none is. A scroll event that finds
+   * the element still there belongs to the restore rather than to the user — see {@link start}.
    */
-  private restoring = false;
+  private restoredTo: number | null = null;
 
   constructor() {
     this.router.events
@@ -56,24 +56,28 @@ export class VaultPopupScrollPositionService {
         // vault attaches twice — `popup-page`'s region first, then the table's viewport once its
         // rows render — and the first element never scrolls, so a restore onto it lands at 0.
         // Reading the result keeps the last attach authoritative whichever order they settle in,
-        // and a stored 0 still resolves to false.
+        // and a stored 0 still resolves to false. A clamped restore lands short of the target, so
+        // this is the offset the guard below compares against.
+        this.restoredTo = scrollElement.scrollTop;
         this.scrollLayout.restoredScrolled.set(scrollElement.scrollTop > 0);
-        setTimeout(() => {
-          this.restoring = false;
-        });
       });
     }
 
     this.scrollSubscription?.unsubscribe();
 
-    // Ignore scroll events until the restore above has settled. Counting events does not work: a
-    // restore can provoke more than one.
-    this.restoring = restoring;
+    this.restoredTo = restoring ? target : null;
 
     this.scrollSubscription = fromEvent(scrollElement, "scroll").subscribe(() => {
-      if (this.restoring) {
+      // Decided from the offset rather than from elapsed time: `scrollTo` updates `scrollTop`
+      // synchronously but the event waits for the next rendering update, so a timer meant to
+      // outlast it usually expires first — and the restore's own event then read as the user's,
+      // releasing the collapsed chrome the restore had just declared. An event that leaves the
+      // element where the restore put it belongs to the restore, however many arrive.
+      if (this.restoredTo != null && scrollElement.scrollTop === this.restoredTo) {
         return;
       }
+
+      this.restoredTo = null;
       this.scrollLayout.restoredScrolled.set(false);
       this.scrollPosition = scrollElement.scrollTop;
     });
@@ -83,7 +87,7 @@ export class VaultPopupScrollPositionService {
   stop(reset?: true) {
     this.scrollSubscription?.unsubscribe();
     this.scrollSubscription = null;
-    this.restoring = false;
+    this.restoredTo = null;
     this.scrollLayout.restoredScrolled.set(false);
 
     if (reset) {

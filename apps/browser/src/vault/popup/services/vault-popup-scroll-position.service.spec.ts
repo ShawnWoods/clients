@@ -8,6 +8,25 @@ import { VAULT_BASE_ROUTE } from "@bitwarden/vault";
 
 import { VaultPopupScrollPositionService } from "./vault-popup-scroll-position.service";
 
+/**
+ * A `scrollTo` that behaves like a real element: `scrollTop` updates synchronously, clamped to
+ * `maxTop`, but the `scroll` event waits for the next rendering update. Mocks that dispatch
+ * synchronously put the event before the code that runs after `scrollTo`, an ordering the browser
+ * never produces — which hid two separate ordering bugs in this service.
+ */
+const stubScrollTo = (el: HTMLElement, maxTop = Number.MAX_SAFE_INTEGER) => {
+  (el as any).scrollTop = 0;
+  (el as any).scrollTo = jest.fn((opts: { top?: number }) => {
+    const next = Math.min(opts?.top ?? 0, maxTop);
+    if (next === (el as any).scrollTop) {
+      return;
+    }
+    (el as any).scrollTop = next;
+    setTimeout(() => el.dispatchEvent(new Event("scroll")), 16);
+  });
+  return el;
+};
+
 describe("VaultPopupScrollPositionService", () => {
   let service: VaultPopupScrollPositionService;
   const events$ = new Subject();
@@ -111,14 +130,7 @@ describe("VaultPopupScrollPositionService", () => {
     let scrollElement: HTMLElement;
 
     beforeEach(() => {
-      scrollElement = document.createElement("div");
-
-      (scrollElement as any).scrollTo = jest.fn(function scrollTo(opts: { top?: number }) {
-        if (opts?.top != null) {
-          (scrollElement as any).scrollTop = opts.top;
-        }
-      });
-      (scrollElement as any).scrollTop = 0;
+      scrollElement = stubScrollTo(document.createElement("div"));
     });
 
     afterEach(() => {
@@ -163,17 +175,11 @@ describe("VaultPopupScrollPositionService", () => {
       it("keeps the stored position when a restore is clamped to a shorter list", fakeAsync(() => {
         // Switching to a vault with fewer items cannot honor the saved offset, so the browser
         // clamps `scrollTop` and fires a scroll event of its own.
-        const clamp = 40;
-        ((scrollElement as any).scrollTo as jest.Mock).mockImplementation(
-          (opts: { top?: number }) => {
-            (scrollElement as any).scrollTop = Math.min(opts?.top ?? 0, clamp);
-            scrollElement.dispatchEvent(new Event("scroll"));
-          },
-        );
+        stubScrollTo(scrollElement, 40);
         service["scrollPosition"] = 234;
 
         service.start(scrollElement);
-        tick();
+        tick(100);
 
         expect(service["scrollPosition"]).toBe(234);
       }));
@@ -294,24 +300,10 @@ describe("VaultPopupScrollPositionService", () => {
        * attempted let the no-op restore onto the region cancel the real one onto the viewport.
        */
       describe("across the vault's two-phase attach", () => {
-        /** A `scrollTo` that clamps to `max` and only fires when the offset actually changes. */
-        const realistic = (el: HTMLElement, max: number) => {
-          (el as any).scrollTo = jest.fn((opts: { top?: number }) => {
-            const next = Math.min(opts?.top ?? 0, max);
-            if (next === (el as any).scrollTop) {
-              return;
-            }
-            (el as any).scrollTop = next;
-            el.dispatchEvent(new Event("scroll"));
-          });
-          (el as any).scrollTop = 0;
-          return el;
-        };
-
         /** `popup-page`'s region wraps the table exactly, so it never overflows. */
-        const region = () => realistic(document.createElement("div"), 0);
+        const region = () => stubScrollTo(document.createElement("div"), 0);
         /** The table's own viewport, which does scroll. */
-        const viewport = () => realistic(document.createElement("div"), 1000);
+        const viewport = () => stubScrollTo(document.createElement("div"), 1000);
 
         it("keeps the declared state when the second attach restores the offset", fakeAsync(() => {
           const scrollLayout = TestBed.inject(ScrollLayoutService);
@@ -341,6 +333,38 @@ describe("VaultPopupScrollPositionService", () => {
           service["scrollSubscription"]?.unsubscribe();
         }));
       });
+
+      /**
+       * The restore's own scroll event arrives a frame later than the code following `scrollTo`,
+       * so a guard cleared on a timer expires first and the event reads as the user's — releasing
+       * the collapsed chrome the restore had just declared.
+       */
+      it("holds the declared state through the restore's own deferred event", fakeAsync(() => {
+        const scrollLayout = TestBed.inject(ScrollLayoutService);
+        service["scrollPosition"] = 500;
+
+        service.start(scrollElement);
+        tick(100);
+
+        expect((scrollElement as any).scrollTop).toBe(500);
+        expect(scrollLayout.restoredScrolled()).toBe(true);
+        expect(service["scrollPosition"]).toBe(500);
+      }));
+
+      it("hands over to the user once they scroll away from the restored offset", fakeAsync(() => {
+        const scrollLayout = TestBed.inject(ScrollLayoutService);
+        service["scrollPosition"] = 500;
+
+        service.start(scrollElement);
+        tick(100);
+
+        (scrollElement as any).scrollTop = 300;
+        scrollElement.dispatchEvent(new Event("scroll"));
+        tick();
+
+        expect(scrollLayout.restoredScrolled()).toBe(false);
+        expect(service["scrollPosition"]).toBe(300);
+      }));
 
       it("does not leave the restore guard raised after stop", fakeAsync(() => {
         service["scrollPosition"] = 234;
