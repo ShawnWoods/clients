@@ -281,6 +281,27 @@ export class NativeMessagingMain {
       default:
         break;
     }
+
+    await this.generateDebugChromeManifest(binaryPath);
+  }
+
+  // A debug run points Chrome at an isolated user data dir, which is also where Chrome looks
+  // for that profile's native messaging manifests. Without this the debug browser cannot reach
+  // the debug desktop client.
+  private async generateDebugChromeManifest(binaryPath: string) {
+    const profileDir = process.env.BITWARDEN_CHROME_PROFILE_DIR;
+
+    if (!profileDir) {
+      return;
+    }
+
+    const nmhsPath = path.join(profileDir, "NativeMessagingHosts");
+    await fs.mkdir(nmhsPath, { recursive: true });
+
+    await this.writeManifest(
+      path.join(nmhsPath, "com.8bit.bitwarden.json"),
+      await this.generateChromeJson(binaryPath),
+    );
   }
 
   async generateDdgManifests() {
@@ -487,6 +508,10 @@ export class NativeMessagingMain {
         ];
         break;
       }
+    }
+
+    if (process.env.BITWARDEN_CHROME_PROFILE_DIR) {
+      chromePaths.push(process.env.BITWARDEN_CHROME_PROFILE_DIR);
     }
 
     for (const chromePath of chromePaths) {
