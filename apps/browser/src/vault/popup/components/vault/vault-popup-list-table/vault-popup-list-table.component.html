@@ -19,7 +19,12 @@
       appAutofocus
     ></bit-search>
 
-    <bit-filter-menu key="cipherType" [placeholderText]="'type' | i18n" [unsetLabel]="'all' | i18n">
+    <bit-filter-menu
+      key="cipherType"
+      [placeholderText]="'type' | i18n"
+      [unsetLabel]="'all' | i18n"
+      icon="bwi-list"
+    >
       @for (option of cipherTypeOptions(); track option.value) {
         <bit-filter-option [value]="option.value" [count]="optionCount('cipherType', option.value)">
           {{ option.label }}
@@ -27,12 +32,13 @@
       }
     </bit-filter-menu>
 
-    <!--
-      Do not show the vault filter if the user is scoped to a single vault.
-      Removing it rather than hiding it also removes it from the filter dialog.
-    -->
     @if (organizationOptions().length && !vaultSelected()) {
-      <bit-filter-menu key="organization" [placeholderText]="'vault' | vfo1I18n: 'vaults'" multiple>
+      <bit-filter-menu
+        key="organization"
+        [placeholderText]="'vault' | vfo1I18n: 'vaults'"
+        multiple
+        icon="bwi-vault"
+      >
         @for (option of organizationOptions(); track option.value.id) {
           <bit-filter-option
             [value]="option.value.id"
@@ -49,6 +55,7 @@
         [placeholderText]="'collection' | vfo1I18n: 'sharedFolders'"
         [unsetLabel]="'all' | i18n"
         multiple
+        icon="bwi-shared-folder"
       >
         @if (groupCollectionsByOrg()) {
           @for (org of collectionsByOrg(); track org.id) {
@@ -76,7 +83,12 @@
     }
 
     @if (folderOptions().length) {
-      <bit-filter-menu key="folder" [placeholderText]="'folder' | vfo1I18n: 'myFolders'" multiple>
+      <bit-filter-menu
+        key="folder"
+        [placeholderText]="'folder' | vfo1I18n: 'myFolders'"
+        multiple
+        icon="bwi-folder"
+      >
         @for (option of folderOptions(); track option.value.id) {
           <bit-filter-option
             [value]="option.value.id ?? NO_FOLDER"
